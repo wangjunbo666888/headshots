@@ -29,7 +29,7 @@ import { SubmitHandler, useForm } from "react-hook-form";
 import { FaFemale, FaImages, FaMale, FaRainbow } from "react-icons/fa";
 import * as z from "zod";
 import { fileUploadFormSchema } from "@/types/zod";
-import { upload } from "@vercel/blob/client";
+import { uploadToR2 } from "@/lib/cloudflare-r2";
 import axios from "axios";
 import { ImageInspector } from "./ImageInspector";
 import { ImageInspectionResult, aggregateCharacteristics } from "@/lib/imageInspection";
@@ -123,16 +123,25 @@ export default function TrainModelZone({ packSlug }: { packSlug: string }) {
 
   const trainModel = useCallback(async () => {
     setIsLoading(true);
-    // Upload each file to Vercel blob and store the resulting URLs
+    // 替换Vercel Blob上传为R2上传
     const blobUrls = [];
 
     if (files) {
       for (const file of files) {
-        const blob = await upload(file.name, file, {
-          access: "public",
-          handleUploadUrl: "/astria/train-model/image-upload",
-        });
-        blobUrls.push(blob.url);
+        try {
+          // 使用R2上传替代Vercel Blob
+          const blob = await uploadToR2(file);
+          blobUrls.push(blob.url);
+        } catch (error) {
+          console.error("Error uploading file to R2:", error);
+          setIsLoading(false);
+          toast({
+            title: "上传失败",
+            description: "文件上传到R2存储时出错",
+            duration: 5000,
+          });
+          return;
+        }
       }
     }
 
